@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+exec grep --exclude='.tags*' --colour=always -Irni "$@" | less -r

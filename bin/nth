@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+if [[ -z $@ ]]
+then
+	echo "usage: nth NUMBER"
+	echo "   prints nth line read from stdin"
+	echo "   counting from 1"
+	exit 0
+fi
+
+if ! [[ $1 =~ ^[0-9]+$ ]]
+then
+	err "$1 is not a number"
+	exit 1
+fi
+
+head -$1 | tail -1

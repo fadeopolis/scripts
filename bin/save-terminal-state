@@ -1,0 +1,27 @@
+#!/usr/bin/fish
+
+set STATE_DIR  ~/.fav/terminal/
+
+set argc (count $argv)
+
+for i in (seq 1 "$argc")
+	set argv["$i"] (basename "$argv[$i]" .term)
+end
+
+if [ "$argc" -eq 0 ]
+	set STATE_FILE "$STATE_DIR/main.term"
+else if [ "$argc" -gt 1 ]
+	set STATE_FILE "$STATE_DIR/$argv[1].term"
+	set argv       "$argv[2..]"
+else
+	echo "usage:" (basename (status -f)) "[STATE]"
+	exit 1
+end
+
+mkdir -p "$STATE_DIR"
+
+gnome-terminal --save-config="$STATE_FILE"
+
+for STATE_FILE_ALIAS in $argv
+	cp "$STATE_FILE" "$STATE_DIR/$STATE_FILE_ALIAS"".term"
+end

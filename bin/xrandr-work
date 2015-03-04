@@ -1,0 +1,46 @@
+#!/usr/bin/fish
+
+set LAPTOP_NAME     LVDS1
+set LAPTOP_ROTATION normal
+
+set SCREEN_1_NAME     VGA1
+set SCREEN_1_ROTATION left
+
+set SCREEN_2_NAME     DP3
+set SCREEN_2_ROTATION left
+
+function setup_screens
+	color -f red "GETTING TO A SANE STARTING STATE"
+
+	xrandr \
+		--output "$LAPTOP_NAME"   --off \
+		--output "$SCREEN_1_NAME" --auto --rotate left --left-of "$LAPTOP_NAME" \
+	;
+	sleep 2s
+
+	color -f red "DISABLING LAPTOP MONITOR"
+
+	xrandr \
+		--output "$LAPTOP_NAME"   --off \
+	;
+	sleep 2s
+
+	color -f red "FINAL CONFIG"
+
+	xrandr \
+		--output "$LAPTOP_NAME"   --off \
+		--output "$SCREEN_1_NAME" --auto --rotate left \
+		--output "$SCREEN_2_NAME" --auto --rotate left --right-of "$SCREEN_1_NAME" \
+	;
+end
+
+color -f blue "CONFIGURING SCREENS"
+setup_screens
+
+sleep 3s
+
+color -f blue "DOING IT AGAIN! BECAUSE SCIENCE!"
+setup_screens
+
+color -f green "ENJOY THE RAT RACE"
+

@@ -1,0 +1,20 @@
+#!/usr/bin/fish
+
+set STATE_DIR  ~/.fav/terminal/
+
+set argc (count $argv)
+
+if [ "$argc" -eq 0 ]
+	set STATE_FILE "$STATE_DIR/main.term"
+else if [ "$argc" -eq 1 ]
+	set STATE_FILE "$STATE_DIR/$argv[1].term"
+else
+	echo "usage:" (basename (status -f)) "[STATE]"
+	exit 1
+end
+
+if test -f "$STATE_FILE"
+	exec gnome-terminal --load-config="$STATE_FILE"
+else
+	exec gnome-terminal
+end

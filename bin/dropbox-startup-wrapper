@@ -1,0 +1,34 @@
+#!/usr/bin/fish
+
+## Dropbox's indexing really slows down my systems startup
+## This wrapper delays startup of the dropbox daemon and
+## reduces it's IO priority via ionice
+
+set INITIAL_SLEEP                 5m
+set SLEEP_BEFORE_UPDATING_CONFIG  5m
+set DESKTOP_FILE                  ~/.config/autostart/dropbox.desktop
+
+echo "Delaying initial startup of dropbox daemon"
+sleep $INITIAL_SLEEP
+
+## ionice class 3 == idle
+ionice -c 3 dropbox start; or echo "Dropbox failed to start..."
+
+sleep $SLEEP_BEFORE_UPDATING_CONFIG
+
+# Dropbox overwrites its .config/autostart/dropbox.desktop file on
+# every start. I want it to delay. So this starts dropbox, waits, then
+# restores my config.
+# Also, while I'm at it, ionice dropbox to idle.
+
+if [ -f $DESKTOP_FILE ]
+	## dropbox is configured for autostart
+
+	if cmp $DESKTOP_FILE $DESKTOP_FILE.original
+		# Files are identical. Replace.
+		echo "Replacing Dropbox autostart."
+		sed -i 's/Exec=.*/Exec=\/home\/fader\/.fav\/bin\/dropbox-startup-wrapper/' $DESKTOP_FILE
+	else
+		echo "Dropbox autostart differs from the distributed version."
+	end
+end

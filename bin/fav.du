@@ -1,0 +1,3 @@
+#!/usr/bin/fish
+
+du -h $argv | sort -rh

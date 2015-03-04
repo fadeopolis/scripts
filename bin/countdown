@@ -1,0 +1,54 @@
+#!/bin/bash
+## Shamelessly stolen from:
+##  http://superuser.com/questions/611538/is-there-a-way-to-display-a-countdown-or-stopwatch-timer-in-a-terminal
+
+set -o errexit
+set -o nounset
+
+function usage {
+	err "usage: countdown SECONDS [MINS [HOURS]]"
+	exit 1
+}
+
+### PARSE ARGS
+
+if [[ -n "${1:-}" ]] && [[ "${1}" =~ ^-?[0-9]+$ ]]
+then
+	SECONDS="${1}"
+else
+	usage
+fi
+
+if [[ -z "${2:-}" ]]
+then
+	MINUTES=0
+elif [[ "${2:-}" =~ ^-?[0-9]+$ ]]
+then
+	MINUTES="${2}"
+else
+	usage
+fi
+
+if [[ -z "${3:-}" ]]
+then
+	HOURS=0
+elif [[ "${3:-}" =~ ^-?[0-9]+$ ]]
+then
+	HOURS="${3}"
+else
+	usage
+fi
+
+### DO COUNTDOWN
+
+IFS=:
+set -- $*
+secs=$(( ${HOURS} * 3600 + ${MINUTES} * 60 + ${SECONDS} ))
+while [ "$secs" -gt 0 ]
+do
+	sleep 1 &
+	printf "\r%02d:%02d:%02d" $((secs/3600)) $(( (secs/60)%60)) $((secs%60))
+	secs=$(( $secs - 1 ))
+	wait
+done
+echo

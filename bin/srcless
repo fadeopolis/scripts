@@ -1,0 +1,3 @@
+#!/usr/bin/fish
+
+pygmentize $argv | less -r -J -N -M

@@ -1,0 +1,141 @@
+#!/usr/bin/python3
+
+import os
+import os.path
+import threading
+import queue
+
+def main():
+	parser  = setup_argument_parser()
+	options = parser()
+
+	options.mode(options.files)
+
+## APPLICATION MODES
+
+def delete_bulk(roots):
+	try:
+		paths  = []
+
+		def fn(path):
+			paths.append(path)
+			print("\tfound '%s'" % path)
+
+		traverse_temps(fn, roots)
+
+		if not paths:
+			return
+
+		print("enter Y/yes/Yes to delete", len(paths), "temporary file(s)")
+
+		str = input()
+
+		if str in ['Y', 'yes', 'Yes']:
+			for path in paths:
+				os.remove(path)
+			print("deleted", len(paths), "files")
+		else:
+			print("skipped", len(paths), "files")
+	except KeyboardInterrupt:
+		pass
+
+def delete_interactive(roots):
+	try:
+		def fn(path):
+			print("enter Y/yes/Yes to delete '%s'" % path)
+			str = input()
+
+			if str in ['Y', 'yes', 'Yes']:
+				os.remove(path)
+				print("deleted '%s'" % path)
+			else:
+				print("skipped '%s'" % path)
+
+		traverse_temps(fn, roots)
+	except KeyboardInterrupt:
+		pass
+
+## ARG PARSE
+
+def setup_argument_parser():
+	import argparse
+
+	parser = argparse.ArgumentParser(description='Delete temporary files.')
+
+	parser.add_argument(
+		'files', metavar="FILES", nargs='*',
+		help='Files and directories in which to look for temporaries')
+
+	group = parser.add_mutually_exclusive_group()
+
+	group.add_argument(
+		'-i', '--interactive', dest='mode',
+		action='store_const', const=delete_interactive,
+		help='Delete temporaries one by one, prompting user for each deletion')
+
+	group.add_argument(
+		'-b', '--bulk', dest='mode',
+		action='store_const', const=delete_bulk,
+		help='Delete all temporaries in one go prompting user only once')
+
+	def parse():
+		options = parser.parse_args()
+
+		options.mode  = options.mode  or delete_bulk
+		options.files = options.files or ['.']
+
+		return options
+
+	return parse
+
+## calls fn for every temporary file
+## found when walking file system starting at roots
+def traverse_temps(fn, roots):
+	class GlobThread(threading.Thread):
+		def __init__(self, queue, directories):
+			threading.Thread.__init__(self)
+			self.daemon      = True
+			self.queue       = queue
+			self.directories = directories
+
+		def run(self):
+			try:
+				queue       = self.queue
+				directories = self.directories
+
+				for root in directories:
+					if not os.path.exists(root):
+						continue
+
+					for dirpath, dirnames, filenames in os.walk(root):
+						for filename in filenames:
+							path = dirpath + '/' + filename
+
+							if path.startswith('./'):
+								path = path[2:]
+							if path.endswith('~'):
+								queue.put(path)
+
+				# None is sentinel for thread is done
+				queue.put(None)
+			except KeyboardInterrupt:
+				pass
+
+	q      = queue.Queue(4096)
+	thread = GlobThread(q, roots)
+
+	thread.start()
+
+	while True:
+		path = q.get()
+
+		if path is None:
+			q.task_done()
+			break
+
+		fn(path)
+
+		q.task_done()
+
+if __name__ == '__main__':
+	main()

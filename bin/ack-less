@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+PATTERN="${1:-}"
+shift 1
+
+exec ack-grep --pager='less -r' --match "$PATTERN" $@

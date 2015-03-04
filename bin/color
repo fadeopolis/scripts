@@ -1,0 +1,214 @@
+#!/usr/bin/python3
+
+from fav.util   import *
+from optparse   import OptionParser, OptionGroup
+
+def main():
+	##### PARSE ARGUMENTS ##############################################################################################
+
+	parser = OptionParser(usage = "usage: %prog [OPTIONS] [STRING]...")
+
+	## full control for user
+	parser.add_option(
+		"-c", "--ansi-codes",
+		help="Specify ANSI codes directly. ANSI codes must be 1 or 2 digits long, multiple codes may be seperated by , or ;",
+		dest="ansi"
+	)
+
+	## text color options
+	group = OptionGroup(parser, "Color options", "Available colors: 'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'")
+	# hu
+	group.add_option("-f", "--foreground", help="foreground (text) color", dest="foreground", metavar="COLOR")
+	group.add_option("-b", "--background", help="background color",        dest="background", metavar="COLOR")
+
+	# intensity
+	group.add_option(
+		"-i", "--fi", "--intense-foreground",
+		help="make foreground (text) color intense (ignored when color codes are used)",
+		default=False, action="store_true", dest="intense_foreground"
+	)
+	group.add_option(
+		"--bi", "--intense-background",
+		help="make background color intense (ignored when color codes are used)",
+		default=False, action="store_true", dest="intense_background"
+	)
+
+	parser.add_option_group(group)
+
+	## text formatting options
+	group = OptionGroup(parser, "Text formatting options")
+
+	group.add_option("-B", "--bold",        help="make text bold",        default=False, action="store_true", dest="bold")
+	group.add_option("-F", "--faint",       help="make text color faint", default=False, action="store_true", dest="faint")
+	group.add_option("-U", "--underline",   help="underline text",        default=False, action="store_true", dest="underline")
+	group.add_option("-C", "--conceal",     help="print nothing",         default=False, action="store_true", dest="conceal")
+	group.add_option("-X", "--crossed-out", help="cross out text",        default=False, action="store_true", dest="crossed-out")
+	group.add_option("-I", "-N", "--invert", "--negative", help="invert image colors",   default=False, action="store_true", dest="negative")
+	group.add_option("-w", "--width",       help="minimum text width",    default=0,     dest="width", metavar="WIDTH", type="int")
+	group.add_option("-r", "--align-right", help="align text to right",   default=False, action="store_true", dest="align_right")
+
+	parser.add_option_group(group)
+
+	## misc options
+	group = OptionGroup(parser, "Misc")
+
+	group.add_option(
+		"-n", "--no-newline",
+		help="do not output the trailing newline",
+		default=True, action="store_false", dest="newline"
+	)
+
+	parser.add_option_group(group)
+
+	## parse
+	options, args = parser.parse_args()
+
+	##### BUILD OUTPUT #################################################################################################
+
+	format = ""
+
+	## user entered codes directly
+	if options.ansi:
+		import re
+
+		if not re.match("^\d{1,2}(,|;\d{1,2})*$", options.ansi):
+			bail("ANSI codes must be 1 or 2 digits long, multiple codes may be seperated by , or ;")
+
+		format += options.ansi.replace(",", ";")
+
+	## foreground color
+	if options.foreground:
+		try:
+			format += getForeground(options.foreground, options.intense_foreground)
+		except ColorException as e:
+			bail(*e.args)
+	## background color
+	if options.background:
+		try:
+			format += getBackground(options.background, options.intense_background)
+		except ColorException as e:
+			bail(*e.args)
+
+	## modifiers
+	modifiers = []
+
+	for code in MODIFIER_CODES:
+		if options.__getattribute__(code):
+			modifiers.append(MODIFIER_CODES[code])
+
+	format += CODE_SEPERATOR.join(modifiers)
+
+	## only emit the reset code if any formatting is done
+	deformat = RESET_CODE if format else ""
+
+	## misc
+	# check if we should emit a newline at the end
+	end = "\n" if options.newline else ""
+
+	## concat all positional params for output
+	strings = " ".join(args)
+
+	## pad to minimum width
+	if options.align_right:
+		strings = strings.rjust(options.width)
+	else:
+		strings = strings.ljust(options.width)
+
+	## add escape codes to format string
+	format = BEGIN_ESCAPE + format + END_ESCAPE
+
+	##### EMIT OUTPUT ##################################################################################################
+
+	if strings:
+		print(format, strings, deformat, sep="", end=end)
+
+### AVAILABLE COLORS
+# don't reorder, order does matter
+NORMAL_COLORS  = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+INTENSE_COLORS = ["intense-" + c for c in NORMAL_COLORS]
+RGB_COLORS     = [str(c) for c in range(0, 257)]
+
+COLOR_ALIASES = {
+	'r': 'red',
+	'g': 'green',
+	'b': 'blue',
+}
+
+#ALL_COLORS = NORMAL_COLORS + INTENSE_COLORS + RGB_COLORS
+
+### USED ESCAPE SEQUENCES
+BEGIN_ESCAPE   = "\x1B["
+END_ESCAPE     = "m"
+CODE_SEPERATOR = ";"
+RESET_CODE     = BEGIN_ESCAPE + "0" + END_ESCAPE
+
+### ALL SUPPORTED MODIFIERS
+MODIFIER_CODES = {	 # source: http://en.wikipedia.org/wiki/ANSI_escape_code (Feb 2011)
+	"bold":            "1",	 # Bright (increased intensity) or Bold,
+	"faint":           "2",	 # Faint (decreased intensity), not widely supported
+	"underline":       "4",	 # Underline: Single,
+	"negative":        "7",	 # Image: Negative, inverse or reverse; swap foreground and background
+	"conceal":         "8",	 # Conceal, not widely supported
+	"crossed-out":     "9",	 # Crossed-out, Characters legible, but marked for deletion. Not widely supported.
+}
+
+NORMAL_FOREGROUND_CODE   =    "3"	 # sets color on foreground
+NORMAL_BACKGROUND_CODE   =    "4"	 # sets color on background
+INTENSE_FOREGROUND_CODE  =    "9"	 # sets color on foreground
+INTENSE_BACKGROUND_CODE  =   "10"	 # sets color on background
+RGB_FOREGROUND_CODE      = "38;5;"	 # sets color on foreground
+RGB_BACKGROUND_CODE      = "48;5;"	 # sets color on background
+
+class ColorException(Exception):
+	pass
+
+def getForeground(color, intense):
+	if isRGBCode(color):
+		return RGB_FOREGROUND_CODE + color
+
+	lower = color.lower()
+
+	if lower in COLOR_ALIASES:
+		lower = COLOR_ALIASES[lower]
+
+	if (lower in NORMAL_COLORS and intense) or lower in INTENSE_COLORS:
+		return INTENSE_FOREGROUND_CODE + str(INTENSE_COLORS.index(lower))
+	elif lower in NORMAL_COLORS:
+		return NORMAL_FOREGROUND_CODE  + str(NORMAL_COLORS.index(lower))
+	else:
+		raise ColorException("Illegal color: '{0}', use -h flag to see list of valid colors.".format(color))
+
+def getBackground(color, intense):
+	if isRGBCode(color):
+		return RGB_BACKGROUND_CODE + color
+
+	lower = color.lower()
+
+	if (lower in NORMAL_COLORS and intense) or lower in INTENSE_COLORS:
+		return INTENSE_BACKGROUND_CODE + str(INTENSE_COLORS.index(lower))
+	elif lower in NORMAL_COLORS:
+		return NORMAL_BACKGROUND_CODE  + str(NORMAL_COLORS.index(lower))
+	else:
+		raise ColorException("Illegal color: '{0}', use -h flag to see list of valid colors.".format(color))
+
+def isRGBCode(color):
+	try:
+		val = int(color)
+
+		return 0 <= val < 256
+	except (ValueError, TypeError):
+		return False
+
+def bail(*msgs):
+	import sys
+
+	msg = " ".join(msgs)
+
+	print(msg, file=sys.stdout)
+	exit(1)
+
+if __name__ == "__main__":
+	try:
+		main()
+	except KeyboardInterrupt:
+		pass

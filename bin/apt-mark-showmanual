@@ -1,0 +1,8 @@
+#!/bin/bash
+# Show which packages are marked as `installed manually'
+
+set -o errexit
+set -o nounset
+
+comm -23 <(apt-mark showmanual | sort -u) <(gzip -dc /var/log/installer/initial-status.gz | sed -n 's/^Package: //p' | sort -u)
+

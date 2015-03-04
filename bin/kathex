@@ -1,0 +1,165 @@
+#!/usr/bin/python3
+
+##### PARSE OPTIONS ############################################################
+
+import argparse
+import glob
+import os
+import subprocess
+
+DEFAULT_BUILD_COMMAND     = 'pdflatex'
+RUBBER_COMMAND            = 'rubber -q -s --pdf'
+PDFLATEX_COMMAND          = 'pdflatex'
+
+DEFAULT_PDF_VIEWER        = 'evince'
+DEFAULT_HELPER_FILE_TYPES = ['log','aux','bbl','blg']
+
+def main():
+	buildCmd, pdfViewer, texFile = parseCommandLineArguments()
+
+	### process input file name for usability
+	## if the user specified no input file try to find a .tex file
+	if texFile is None:
+		candidates = glob.glob('*.tex')
+		if len(candidates) == 0:
+			abort(">>>> There are no .tex files in the current directory, please tell me which one you want to compile.")
+		elif len(candidates) > 1:
+			print(">>>> You did not specify which .tex file to use")
+			print(">>>> and there is more than one in the current directory,")
+			print(">>>> please tell me which one you want to compile.")
+			print(">>>> Candidates are:")
+			for candidate in candidates:
+				print (">>>>     " + candidate)
+			exit(1)
+		if len(candidates) == 1:
+			texFile = candidates[0]
+	## the specified file does not exist
+	elif not os.path.exists(texFile):
+		# maybe the user ommited the '.tex' extension
+		if os.path.exists(texFile + '.tex'):
+			texFile = texFile + '.tex'
+		# maybe the user typed a dot at the end of the file name but not the 'tex',
+		# this happens a lot when using shell autocompletion
+		elif os.path.exists(texFile + 'tex'):
+			texFile = texFile + 'tex'
+
+	## compile latex
+	print(">>>> Compiling " + texFile)
+	compileLatex(buildCmd, texFile)
+
+	## get basename of latex file
+	basename = getBasename(texFile)
+
+	## name of result of pdf
+	pdfFile = basename + '.pdf'
+
+	## check if a pdf was generated (i.e. it exists and is newer than the tex file)
+	if not os.path.exists(pdfFile) or os.path.getmtime(pdfFile) < os.path.getmtime(texFile):
+		print()
+		abort(">>>> Something went wrong, no PDF file was generated!")
+	if os.path.getsize(pdfFile) == 0:
+		print()
+		abort(">>>> Something went wrong, the generated PDF file is empty!")
+
+	## delete latex helper files
+	for fileType in DEFAULT_HELPER_FILE_TYPES:
+		try:
+			os.remove(basename + '.' + fileType)
+		except OSError:
+			## we don't really care if we couldn't delete a helper file
+			pass
+
+	## view result pdf
+	print()
+	print(">>>> Success! Viewing PDF")
+	viewResultPDF(pdfViewer, pdfFile)
+
+def compileLatex(buildCmd, texFile):
+	try:
+		## invoke compiler
+		latex = subprocess.Popen([buildCmd, texFile])
+		latex.wait()
+	## catch SIGINT from user (pressing Ctrl+C)
+	except KeyboardInterrupt:
+		latex.terminate()
+
+def viewResultPDF(pdfViewer, pdfFile):
+	try:
+		viewer = subprocess.Popen(
+			[pdfViewer, pdfFile],
+			stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE
+		)
+
+		stdout = viewer.communicate()[0]
+
+		print(stdout.decode('UTF-8'))
+	## catch SIGINT from user (pressing Ctrl+C)
+	except KeyboardInterrupt:
+		viewer.terminate()
+
+def parseCommandLineArguments():
+	parser = argparse.ArgumentParser(
+		prog="katex",
+		description="Process latex files into pdfs and view them"
+	)
+
+	parser.set_defaults(
+		texFile   = None,
+		buildCmd  = DEFAULT_BUILD_COMMAND,
+		pdfViewer = DEFAULT_PDF_VIEWER
+	)
+
+	parser.add_argument(
+		'texFile',
+		metavar='TEX',
+		type=str,
+		nargs='?',
+		help='The input latex file to process'
+	)
+	parser.add_argument(
+		'-r', '--rubber',
+		dest='buildCmd',
+		const=RUBBER_COMMAND,
+		action='store_const',
+		help='Use rubber as the latex compiler'
+	)
+	parser.add_argument(
+		'-l', '--pdflatex',
+		dest='buildCmd',
+		const=PDFLATEX_COMMAND,
+		action='store_const',
+		help='Use pdflatex as the latex compiler'
+	)
+	parser.add_argument(
+		'--latex-compiler',
+		dest='buildCmd',
+		action='store',
+		type=str,
+		help='The latex compiler to use'
+	)
+	parser.add_argument(
+		'--pdf-viewer',
+		dest='pdfViewer',
+		action='store',
+		type=str,
+		help='The PDF viewing program to use'
+	)
+
+	args = parser.parse_args()
+
+	return args.buildCmd, args.pdfViewer, args.texFile
+
+def getBasename(fileName, fileExtension='.tex'):
+	## call basename program
+	basename = subprocess.check_output(['basename', fileName, fileExtension]).decode('utf-8')
+
+	## remove trailing '\n'
+	return basename[:-1] if basename.endswith('\n') else basename
+
+def abort(msg):
+	print(msg)
+	exit(1)
+
+if __name__ == '__main__':
+	main()

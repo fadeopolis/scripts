@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+gconftool -s -t string /apps/gnome-terminal/profiles/Default/background_type transparent

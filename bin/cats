@@ -1,0 +1,88 @@
+#!/usr/bin/python3
+
+import sys
+import optparse
+import os.path
+import os
+
+def main():
+	### check cmd line args
+	parser = optparse.OptionParser("usage: %proc [OPTIONS] [FILES]...")
+
+	parser.add_option("-n", "--line-numbers", dest="lineNumbers", help="show line numbers", default=False, action="store_true")
+
+	options, files = parser.parse_args()
+
+	## process options
+	showLineNo = options.lineNumbers
+
+	### process input
+	# read from stdin if no files were specified
+	if not files:
+		files.append("-")
+
+	for file in files:
+		lineNo = 0
+		input = openFile(file)
+
+		while True:
+			try:
+				line = next(input)
+
+				if showLineNo:
+					prefix = "%04d" % lineNo
+				else:
+					prefix = ""
+
+				print(prefix, "\t", line, end="", sep="")
+
+				lineNo += 1
+			except StopIteration:
+				break
+			except UnicodeDecodeError as e:
+				os.system('color -f red "\tError: \'{0}\'"'.format(e))
+				input.close()
+				input = DummyFile()
+
+def openFile(fileName):
+	# helper for printing colored output
+	def printName(color="auto", name=fileName):
+		if color == "auto":
+			print(os.popen("ls -d --color " + name).read(), end="")
+		else:
+			os.system("color -f '{0}' '{1}'".format(color, name))
+
+	## OPEN FILE ACCORDING TO TYPE
+	if fileName == "-":
+		printName("white", "<stdin>")
+		return sys.stdin
+	elif os.path.isdir(fileName):
+		printName()
+		return DummyFile()
+	else:
+		printName()
+
+	return open(fileName, "r")
+
+# dummy stream, always empty
+class DummyFile:
+	def __next__(self):
+		raise StopIteration
+
+	def close(self):
+		pass
+
+def process(file, name, showLineNo):
+	print("{0}:".format(name))
+
+	if showLineNo:
+		lineNo = 0
+
+		for line in file:
+			print("{0}\t{1}".format(lineNo, line), end="")
+	else:
+		for line in file:
+			print("\t{0}".format(line), end="")
+
+if __name__ == '__main__':
+	main()
