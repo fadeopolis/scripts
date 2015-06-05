@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -o nounset
+set -o errexit
+
+LOGFILE="cmake.log"
+
+function log {
+	echo "$@" >> "$LOGFILE"
+}
+
+cmake "$@"
+
+log
+log "# $(date)"
+log "cfake \\"
+for PARAM in "$@"
+do
+	log "  '$PARAM' \\"
+done
+log ";"

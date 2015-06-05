@@ -1,0 +1,7 @@
+#!/usr/bin/python3
+
+import sys
+import yaml
+
+for file in sys.argv:
+	yaml.load(open(file))

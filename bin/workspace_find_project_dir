@@ -1,0 +1,253 @@
+#!/usr/bin/python3
+
+import argparse
+import configparser
+import collections
+import enum
+import os
+import os.path
+import re
+import sys
+
+class WorkspaceException(Exception):
+  pass
+
+class Mode(enum.Enum):
+  src             = ('.', 'source')
+  build_debug     = ('.build/debug', 'debug build')
+  build_release   = ('.build/release', 'release build')
+  install_debug   = ('.install/debug', 'debug installation')
+  install_release = ('.install/release', 'release installation')
+
+  @property
+  def dir(self):
+    return self.value[0]
+
+  @property
+  def description(self):
+    return self.value[1]
+
+  def __str__(self):
+    return self.name.replace('_', '-')
+
+  @staticmethod
+  def parse(txt):
+    try:
+      return Mode(txt)
+    except ValueError as e:
+      if txt == 'src':
+        return Mode.src
+      if txt in ('dbg', 'debug', 'build-debug'):
+        return Mode.build_debug
+      if txt in ('rel', 'release', 'build-release'):
+        return Mode.build_release
+      if txt == 'install-debug':
+        return Mode.install_debug
+      if txt == 'install-release':
+        return Mode.install_release
+
+      we = WorkspaceException(*e.args)
+      we.__cause__ = e
+      raise we
+
+def parse_project(prj):
+  if prj.count('/'):
+    raise WorkspaceException("Invalid project " + repr(prj))
+
+  return prj
+
+def default_workspace():
+  return os.path.expanduser('~/workspace')
+
+class Path(collections.namedtuple('Path', 'workspace project mode subdir')):
+  __slots__ = ()
+
+  @classmethod
+  def parse(clss, path, workspace=None):
+    if not workspace:
+      workspace = default_workspace()
+
+    workspace = os.path.normpath(workspace)
+    path      = os.path.normpath(path)
+
+    workspace_regex = re.escape(workspace)
+
+    match = re.match('^' + workspace_regex + '/([^.][^/]+)/?(.*)$', path)
+    if match:
+      return Path(workspace, match.group(1), Mode.src, match.group(2))
+
+    match = re.match('^' + workspace_regex + '/.build/debug/([^/]+)/?(.*)$', path)
+    if match:
+      return Path(workspace, match.group(1), Mode.build_debug, match.group(2))
+
+    match = re.match('^' + workspace_regex + '/.build/release/([^/]+)/?(.*)$', path)
+    if match:
+      return Path(workspace, match.group(1), Mode.build_release, match.group(2))
+
+    match = re.match('^' + workspace_regex + '/.install/debug/([^/]+)/?(.*)$', path)
+    if match:
+      return Path(workspace, match.group(1), Mode.install_debug, match.group(2))
+
+    match = re.match('^' + workspace_regex + '/.install/release/([^/]+)/?(.*)$', path)
+    if match:
+      return Path(workspace, match.group(1), Mode.install_release, match.group(2))
+
+    raise WorkspaceException('Invalid path')
+
+  def __new__(clss, workspace, project, mode, subdir):
+    assert type(workspace) is str
+    assert type(project) is str
+    assert type(mode) is Mode
+
+    return super(clss, Path).__new__(clss, workspace, project, mode, subdir)
+
+  @property
+  def path(self):
+    if self.mode is Mode.src:
+      paths = (self.project, self.subdir,)
+    else:
+      paths = (self.mode.dir, self.project, self.subdir)
+
+    return os.path.normpath(os.path.join(self.workspace, *paths))
+
+  def stripdir(self):
+    return Path(self.workspace, self.project, self.mode, os.path.dirname(self.subdir))
+
+class Main:
+  def __init__(self):
+    assert(len(sys.argv))
+    self.progname = sys.argv[0]
+    self.argv     = sys.argv[1:]
+
+  def main(self):
+    class UniqueStore(argparse.Action):
+      """argparse store action that forbids using the same option twice."""
+
+      def __call__(self, parser, namespace, values, option_string):
+          if getattr(namespace, self.dest, self.default) is not None:
+              parser.error('Flag ' + option_string + " appears several times.")
+          setattr(namespace, self.dest, values)
+
+    parser = argparse.ArgumentParser(description='Find directory for project in workspace.')
+    parser.add_argument(
+      '-w', '--workspace', dest='workspace', action=UniqueStore,
+       help='Workspace in which to search for projects')
+    parser.add_argument(
+      '-m', '--mode', dest='mode', action=UniqueStore,
+      help='type of directory to search')
+    parser.add_argument(
+      '-p', '--project', dest='project', action=UniqueStore,
+      help='project in which to look for directory')
+    parser.add_argument(
+      '-d', '--subdir', dest='subdir', action=UniqueStore,
+      help='Subdirectory in project to which to navigate to')
+    parser.add_argument(
+      '-s', '--strict', dest='strict', default=False, action='store_const', const=True,
+      help="Immediately fail if the newly computed directory does not exist and " +
+      "do not check parent directories")
+
+    args = parser.parse_args()
+
+    ### check if workspace exists
+
+    if args.workspace is None:
+      workspace = default_workspace()
+    else:
+      workspace = args.workspace
+
+    if not os.path.exists(workspace):
+      self.error("Could not find workspace folder")
+
+    ### parse alias file & replace aliases in cmd line args
+
+    cfg = configparser.ConfigParser()
+    cfg['aliases'] = {}
+    try:
+      cfg.read(os.path.join(workspace, '.aliases'))
+
+      for arg, val in args._get_kwargs():
+        if val:
+          setattr(args, arg, cfg['aliases'].get(val, val))
+    except configparser.Error as e:
+      self.warn('Could not read alias file')
+      self.warn(str(e))
+
+    ### parse cwd
+
+    try:
+      cwd  = os.getcwd()
+      old_path = Path.parse(cwd, workspace=workspace)
+      new_path = old_path
+    except WorkspaceException as e:
+      self.error('Current working dir is not a valid project folder')
+
+    ### parse cmd line args
+
+    if args.project is not None:
+      new_path = new_path._replace(project=args.project)
+
+    if args.mode is not None:
+      try:
+        mode     = Mode.parse(args.mode)
+        new_path = new_path._replace(mode=mode)
+      except WorkspaceException as e:
+        self.error(str(e))
+
+    if args.subdir is not None:
+      subdir   = args.subdir
+      new_path = new_path._replace(subdir=subdir)
+
+    ### try to find subdir corresponding to pwd in destination folder
+
+    tmp = new_path
+    while not args.strict and tmp.subdir and not os.path.exists(tmp.path):
+      tmp = tmp.stripdir()
+
+    if not os.path.exists(tmp.path):
+      self.error(
+        "Could not find", new_path.mode.description,
+        "folder for project", "'" + str(new_path.project) + "'")
+
+    print(tmp.path)
+
+  @property
+  def workspace(self):
+    workspace = os.path.expanduser('~/workspace')
+
+    if not os.path.exists(workspace):
+      self.error("Could not find workspace folder")
+
+    return workspace
+
+  @property
+  def regex_workspace(self):
+    return re.escape(self.workspace)
+
+  def get_mode_from_cwd(self, workspace):
+    cwd = os.getcwd()
+
+    regex_workspace = self.regex_workspace
+
+    match = re.match(regex_workspace + '/.build/([^/]+)/.*', cwd)
+    if match:
+      return match.group(1)
+
+    match = re.match(regex_workspace + '/([^/]+)/.*', cwd)
+    if match:
+      return match.group(1)
+
+    self.error("Currently not in a workspace folder")
+
+  def usage(self):
+    print("usage:", os.path.basename(self.progname), "MODE", file=sys.stderr)
+    exit(1)
+
+  def error(self, *msg):
+    print('error:', *msg, file=sys.stderr)
+    exit(1)
+
+  def warn(self, *msg):
+    print('warning:', *msg, file=sys.stderr)
+
+if __name__ == '__main__':
+  Main().main()

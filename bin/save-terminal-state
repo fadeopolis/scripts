@@ -10,11 +10,14 @@ end
 
 if [ "$argc" -eq 0 ]
 	set STATE_FILE "$STATE_DIR/main.term"
+else if [ "$argc" -eq 1 ]
+	set STATE_FILE "$STATE_DIR/$argv[1].term"
+	set argv
 else if [ "$argc" -gt 1 ]
 	set STATE_FILE "$STATE_DIR/$argv[1].term"
 	set argv       "$argv[2..]"
 else
-	echo "usage:" (basename (status -f)) "[STATE]"
+	echo "Whut??"
 	exit 1
 end
 

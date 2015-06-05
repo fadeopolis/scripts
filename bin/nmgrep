@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -o nounset
+set -o errexit
+
+PROGNAME="$(basename $0)"
+
+function main {
+	if [[ "$#" -lt 2 ]]
+	then
+		usage
+	fi
+
+	local SYMBOL="$1"
+	shift 1
+
+
+	set +o errexit
+	for FILE in "$@"
+	do
+		nm -D "$FILE" | cut -d ' ' -f 2- | grep -H --label="$FILE" "$SYMBOL"
+	done
+	set -o errexit
+}
+
+function usage {
+	echo "usage: $PROGNAME SYMBOL FILE [FILES...]" 1>&2
+	exit 1
+}
+
+main "$@"
+
