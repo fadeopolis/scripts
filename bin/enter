@@ -1,8 +1,0 @@
-#!/bin/bash
-## Create a directory and jump into it.
-
-set -o errexit
-set -o nounset
-
-mkdir -p "$@"
-cd       "$@"

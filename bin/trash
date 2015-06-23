@@ -1,12 +1,6 @@
-#!/usr/bin/python
-# EASY-INSTALL-ENTRY-SCRIPT: 'trash-cli==0.12.7','console_scripts','trash-put'
+#!/bin/bash
 
-import sys
-from pkg_resources import load_entry_point
+set -o errexit
+set -o nounset
 
-__requires__ = 'trash-cli==0.12.7'
-
-if __name__ == '__main__':
-    sys.exit(
-        load_entry_point('trash-cli==0.12.7', 'console_scripts', 'trash-put')()
-    )
+exec trash-put "$@"

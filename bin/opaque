@@ -3,4 +3,4 @@
 set -o errexit
 set -o nounset
 
-gconftool -s -t string /apps/gnome-terminal/profiles/Default/background_type solid
+gconftool --set --type=string /apps/gnome-terminal/profiles/Default/background_type solid
