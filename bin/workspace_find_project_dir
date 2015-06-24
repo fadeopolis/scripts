@@ -128,10 +128,12 @@ class Main:
               parser.error('Flag ' + option_string + " appears several times.")
           setattr(namespace, self.dest, values)
 
+    PATH_COMPONENTS = frozenset(['mode', 'project', 'subdir'])
+
     parser = argparse.ArgumentParser(description='Find directory for project in workspace.')
     parser.add_argument(
       '-w', '--workspace', dest='workspace', action=UniqueStore,
-       help='Workspace in which to search for projects')
+      help='Workspace in which to search for projects')
     parser.add_argument(
       '-m', '--mode', dest='mode', action=UniqueStore,
       help='type of directory to search')
@@ -145,8 +147,14 @@ class Main:
       '-s', '--strict', dest='strict', default=False, action='store_const', const=True,
       help="Immediately fail if the newly computed directory does not exist and " +
       "do not check parent directories")
+    parser.add_argument(
+      '--mkdir', dest='mkdir', default=False, action='store_const', const=True,
+      help="Create target directory if it doesn't exist")
 
     args = parser.parse_args()
+
+    if args.strict and args.mkdir:
+      self.error('--strict and --mkdir cannot be set at the same time')
 
     ### check if workspace exists
 
@@ -179,7 +187,11 @@ class Main:
       old_path = Path.parse(cwd, workspace=workspace)
       new_path = old_path
     except WorkspaceException as e:
-      self.error('Current working dir is not a valid project folder')
+      if args.project and args.mode:
+        old_path = Path(workspace, '', Mode.src, '')
+        new_path = old_path
+      else:
+        self.error('Current working dir is not a valid project folder')
 
     ### parse cmd line args
 
@@ -198,6 +210,9 @@ class Main:
       new_path = new_path._replace(subdir=subdir)
 
     ### try to find subdir corresponding to pwd in destination folder
+
+    if args.mkdir:
+      os.makedirs(new_path.path)
 
     tmp = new_path
     while not args.strict and tmp.subdir and not os.path.exists(tmp.path):
