@@ -131,6 +131,8 @@ class Main:
     PATH_COMPONENTS = frozenset(['mode', 'project', 'subdir'])
 
     parser = argparse.ArgumentParser(description='Find directory for project in workspace.')
+
+    ## paths
     parser.add_argument(
       '-w', '--workspace', dest='workspace', action=UniqueStore,
       help='Workspace in which to search for projects')
@@ -143,16 +145,30 @@ class Main:
     parser.add_argument(
       '-d', '--subdir', dest='subdir', action=UniqueStore,
       help='Subdirectory in project to which to navigate to')
+
+    ## options for path search
     parser.add_argument(
-      '-s', '--strict', dest='strict', default=False, action='store_const', const=True,
-      help="Immediately fail if the newly computed directory does not exist and " +
-      "do not check parent directories")
+      '-s', '--strict', dest='strict',
+      default=False, action='store_const', const=True,
+      help="Fail if the newly computed directory does not exist.")
     parser.add_argument(
-      '--mkdir', dest='mkdir', default=False, action='store_const', const=True,
+      '-t', '--try-parents', dest='try_parents',
+      default=False, action='store_const', const=True,
+      help="If the computed directory does not not exist try its parent dirs.")
+
+    ## dir creation
+    parser.add_argument(
+      '--mkdir', dest='mkdir',
+      default=False, action='store_const', const=True,
       help="Create target directory if it doesn't exist")
+
+    ## logging
     parser.add_argument(
-      '-v', '--verbose', dest='verbose', default=False, action='store_const', const=True,
+      '-v', '--verbose', dest='verbose',
+      default=False, action='store_const', const=True,
       help="Log individual components of target path to stderr")
+
+    ### parse cmd line args
 
     args = parser.parse_args()
 
@@ -217,27 +233,29 @@ class Main:
     if args.mkdir:
       os.makedirs(new_path.path)
 
-    tmp = new_path
-    while not args.strict and tmp.subdir and not os.path.exists(tmp.path):
-      tmp = tmp.stripdir()
+    if args.try_parents:
+      tmp = new_path
+      while tmp.subdir and not os.path.exists(tmp.path):
+        tmp = tmp.stripdir()
+      new_path = tmp
 
-    if not os.path.exists(tmp.path):
+    if args.strict and not os.path.exists(tmp.path):
       self.error(
         "Could not find", new_path.mode.description,
         "folder for project", "'" + str(new_path.project) + "'")
 
     if args.verbose:
       header_suffix = ':'
-      header_len    = max(map(len, tmp._fields)) + len(header_suffix)
+      header_len    = max(map(len, new_path._fields)) + len(header_suffix)
 
       for field in tmp._fields:
         print(
           (field + header_suffix).ljust(header_len),
-          getattr(tmp, field),
+          getattr(new_path, field),
           file=sys.stderr
         )
 
-    print(tmp.path)
+    print(new_path.path)
 
   @property
   def workspace(self):
