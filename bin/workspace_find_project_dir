@@ -174,7 +174,7 @@ class Main:
       cfg.read(os.path.join(workspace, '.aliases'))
 
       for arg, val in args._get_kwargs():
-        if val:
+        if val and type(val) is str:
           setattr(args, arg, cfg['aliases'].get(val, val))
     except configparser.Error as e:
       self.warn('Could not read alias file')
