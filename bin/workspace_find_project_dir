@@ -150,6 +150,9 @@ class Main:
     parser.add_argument(
       '--mkdir', dest='mkdir', default=False, action='store_const', const=True,
       help="Create target directory if it doesn't exist")
+    parser.add_argument(
+      '-v', '--verbose', dest='verbose', default=False, action='store_const', const=True,
+      help="Log individual components of target path to stderr")
 
     args = parser.parse_args()
 
@@ -222,6 +225,17 @@ class Main:
       self.error(
         "Could not find", new_path.mode.description,
         "folder for project", "'" + str(new_path.project) + "'")
+
+    if args.verbose:
+      header_suffix = ':'
+      header_len    = max(map(len, tmp._fields)) + len(header_suffix)
+
+      for field in tmp._fields:
+        print(
+          (field + header_suffix).ljust(header_len),
+          getattr(tmp, field),
+          file=sys.stderr
+        )
 
     print(tmp.path)
 
