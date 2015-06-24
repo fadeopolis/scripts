@@ -152,6 +152,10 @@ class Main:
       default=False, action='store_const', const=True,
       help="Fail if the newly computed directory does not exist.")
     parser.add_argument(
+      '-n', '--non-strict', dest='strict',
+      default=False, action='store_const', const=False,
+      help="Don't fail if the newly computed directory does not exist.")
+    parser.add_argument(
       '-t', '--try-parents', dest='try_parents',
       default=False, action='store_const', const=True,
       help="If the computed directory does not not exist try its parent dirs.")
@@ -173,7 +177,7 @@ class Main:
     args = parser.parse_args()
 
     if args.strict and args.mkdir:
-      self.error('--strict and --mkdir cannot be set at the same time')
+      self.error('--strict and --mkdir cannot both be set at the same time')
 
     ### check if workspace exists
 
@@ -230,19 +234,19 @@ class Main:
 
     ### try to find subdir corresponding to pwd in destination folder
 
-    if args.mkdir:
-      os.makedirs(new_path.path)
-
     if args.try_parents:
       tmp = new_path
       while tmp.subdir and not os.path.exists(tmp.path):
         tmp = tmp.stripdir()
       new_path = tmp
 
-    if args.strict and not os.path.exists(tmp.path):
+    if args.strict and not os.path.exists(new_path.path):
       self.error(
         "Could not find", new_path.mode.description,
         "folder for project", "'" + str(new_path.project) + "'")
+
+    if args.mkdir:
+      os.makedirs(new_path.path)
 
     if args.verbose:
       header_suffix = ':'
