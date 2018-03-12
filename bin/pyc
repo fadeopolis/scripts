@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+
+
+def main():
+  import argparse
+  import importlib
+
+  ##
+  ## parse args
+  ##
+
+  p = argparse.ArgumentParser()
+
+  p.add_argument('source', nargs=argparse.REMAINDER)
+
+  p.add_argument('-l', '--extra-lib', type=str, action='append', default=[])
+
+  args = p.parse_args()
+  del p
+
+  ##
+  ## prepare global env
+  ##
+
+  globals_ = {'__builtins__': __builtins__}
+
+  ##
+  ## prepare local env
+  ##
+
+  # useful libraries
+  libs = [
+    'builtins',
+    'collections',
+    'imp',
+    'inspect',
+    'math',
+    'os',
+    'os.path',
+    're',
+    'sys',
+    *args.extra_lib,
+  ]
+  modules = [importlib.import_module(l) for l in libs]
+
+  locals_ = {}
+
+  for module in modules:
+    for key, val in vars(module).items():
+      locals_[key] = val
+
+  for module in modules:
+    locals_[module.__name__] = module
+
+  for source in args.source:
+    code = compile(source, '<code>', 'single', dont_inherit=True)
+
+    eval(code, globals_, locals_)
+
+
+if __name__ == '__main__':
+  main()

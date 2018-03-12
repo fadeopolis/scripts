@@ -1,7 +1,0 @@
-#!/bin/bash
-
-set -o errexit
-set -o nounset
-
-gs -q -sPAPERSIZE=letter -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sOutputFile=output.pdf "$@"
-

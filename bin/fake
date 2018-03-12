@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+
+import argparse
+import os
+import os.path
+import pathlib
+import subprocess
+import multiprocessing
+
+
+def main():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument(
+    '-C', '--directory',
+    type=str,
+    default=os.path.curdir,
+  )
+  parser.add_argument(
+    '-f', '--file',
+    type=str,
+  )
+
+  parser.add_argument(
+    '-k', '--keep-going',
+    action='store_true', default=False,
+  )
+  parser.add_argument(
+    '-n', '--dry-run', '--just-print', '--recon',
+    action='store_true', default=False,
+  )
+  parser.add_argument(
+    '-v', '--verbose',
+    action='store_true', default=False,
+  )
+
+  parser.add_argument(
+    '-j', '--jobs',
+    type=int,
+  )
+  parser.add_argument(
+    '-l', '--max-load', '--load-average',
+    type=int,
+  )
+
+  parser.add_argument(
+    'TARGETS',
+    nargs=argparse.REMAINDER,
+    type=str,
+  )
+
+  args = parser.parse_args()
+
+  if not (args.max_load or args.jobs):
+    num_cpus = multiprocessing.cpu_count()
+
+    # spare one CPU by default
+    if num_cpus > 1:
+      num_cpus -= 1
+
+    args.jobs = num_cpus
+
+  ## find tool to use
+
+  tool = None
+
+  directory = pathlib.Path(args.directory)
+
+  if (directory / 'Makefile').is_file():
+    tool = 'make'
+
+  if (directory / 'build.ninja').is_file():
+    if tool:
+      error("Both Makefile and build.ninja present, use make or ninja directly")
+    else:
+      tool = 'ninja'
+
+  if not tool:
+    error("Neither a Makefile nor a build.ninja present")
+
+  ## run tool
+
+  if tool == 'make':
+    verbose_args = []
+
+    if args.verbose:
+      verbose_args = [
+        'VERBOSE=1',  # turns on verbose for CMake builds
+        'V=1',        # turns on verbose for some autotools builds
+      ]
+
+    ret = subprocess.call(
+      [
+        'make',
+        *(['-C', args.directory]              if args.directory else []),
+        *([f'--file={args.file}']             if args.file else []),
+        *(['--keep-going']                    if args.keep_going else []),
+        *(['--dry-run']                       if args.dry_run else []),
+        *([f'--jobs={args.jobs}']             if args.jobs else []),
+        *([f'--load-average={args.max_load}'] if args.max_load else []),
+        *verbose_args,
+        *args.TARGETS
+      ],
+    )
+    exit(ret)
+
+  if tool == 'ninja':
+    ret = subprocess.call(
+      [
+        'ninja',
+        *(['-C', args.directory]     if args.directory else []),
+        *(['-f', args.file]          if args.file else []),
+        *(['-k', 42]                 if args.keep_going else []),
+        *(['-n']                     if args.dry_run else []),
+        *(['-v']                     if args.verbose else []),
+        *(['-j', str(args.jobs)]     if args.jobs else []),
+        *(['-l', str(args.max_load)] if args.max_load else []),
+        *args.TARGETS
+      ],
+    )
+    exit(ret)
+
+
+def error(*msg):
+  print('fake: error:', *msg)
+  exit(1)
+
+
+if __name__ == '__main__':
+  main()

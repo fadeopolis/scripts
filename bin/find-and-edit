@@ -9,7 +9,7 @@
 
 #exit 0
 
-ack-grep --nogroup --column --match "${argv[1]}" ${argv[2,-1]} | while read LINE
+ack --nogroup --column --match="${argv[1]}" ${argv[2,-1]} | while read LINE
 do
 	FILE=$(echo "$LINE" | cut -d : -f 1)
 	POS=$(echo "$LINE" | cut -d : -f 2-3)

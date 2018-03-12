@@ -6,26 +6,56 @@ set -o errexit
 PROGNAME="$(basename $0)"
 
 function main {
-	if [[ "$#" -lt 2 ]]
-	then
-		usage
-	fi
+  local NM_OPTS=
+  local ARGS=()
 
-	local SYMBOL="$1"
-	shift 1
+  # parse options
+  for ARG in "$@"
+  do
+    case "$ARG" in
+      -h|--help)
+        usage
+        exit 0
+      ;;
+      -D)
+        NM_OPTS="-D"
+      ;;
+      *)
+        ARGS+=("$ARG")
+      ;;
+    esac
+  done
 
+  if [[ "${#ARGS[@]}" -lt 1 ]]
+  then
+    usage >&2
+    exit 1
+  fi
 
-	set +o errexit
-	for FILE in "$@"
-	do
-		nm -D "$FILE" | cut -d ' ' -f 2- | grep -H --label="$FILE" "$SYMBOL"
-	done
-	set -o errexit
+  local SYMBOL="${ARGS[0]}"
+  local FILES=("${ARGS[@]:1}")
+
+  if [[ "${#FILES[@]}" -lt 1 ]]
+  then
+    FILES=($(ls *.so))
+  fi
+
+  for FILE in "${FILES[@]:+${FILES[@]}}"
+  do
+    set +o errexit
+    nm $NM_OPTS "$FILE" | grep -e "$SYMBOL" | ack '\d+ T (.*)' --output="$FILE: \$1"
+    set -o errexit
+  done
 }
 
 function usage {
-	echo "usage: $PROGNAME SYMBOL FILE [FILES...]" 1>&2
-	exit 1
+  echo "usage: nmgrep [-D] PATTERN [FILES...]"
+  echo "looks at '*.so' if no files are specified."
+}
+
+function error {
+  echo "$@" 1>&2
+  exit 1
 }
 
 main "$@"

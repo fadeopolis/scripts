@@ -1,0 +1,41 @@
+#!/usr/bin/python3
+
+import sys
+
+data = {}
+
+def escapeChar(chr):
+    # get repr and drop enclosing quotes
+    if not chr.isprintable():
+      return repr(chr)[1:][:-1]
+
+    if chr.isspace():
+        return '\\x' + hex(ord(chr))[2:]
+
+    return chr
+
+argv  = sys.argv[1:]
+input = argv if argv else map(lambda line: line[:-1], sys.stdin)
+
+for arg in input:
+  try:
+    arg = arg.strip()
+
+    base = 10
+
+    if arg.startswith('0x') or arg.startswith('0X'):
+      base = 16
+    if arg.startswith('0o') or arg.startswith('0O'):
+      base = 8
+    if arg.startswith('0b') or arg.startswith('0B'):
+      base = 2
+
+    num = int(arg, base = base)
+    txt = chr(num)
+
+    data[num] = escapeChar(txt)
+  except ValueError as e:
+    print('Invalid number:', repr(arg), file=sys.stderr)
+
+for ord, chr in sorted(data.items()):
+  print(str(ord).ljust(4), str(chr).rjust(4))

@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -o nounset
+set -o errexit
+set -o pipefail
+IFS=$'\n\t '
+
+# parse options
+for ARG in "$@"
+do
+  case "$ARG" in
+    -h|--help)
+      echo "color-less takes the same options as pygmentize."
+      exit 1
+    ;;
+  esac
+done
+
+export LESS="-RN~"
+
+pygmentize "$@" | less

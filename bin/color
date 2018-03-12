@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
-from fav.util   import *
-from optparse   import OptionParser, OptionGroup
+from optparse import OptionParser, OptionGroup
 
 def main():
 	##### PARSE ARGUMENTS ##############################################################################################
@@ -134,7 +133,7 @@ COLOR_ALIASES = {
 	'b': 'blue',
 }
 
-#ALL_COLORS = NORMAL_COLORS + INTENSE_COLORS + RGB_COLORS
+# ALL_COLORS = NORMAL_COLORS + INTENSE_COLORS + RGB_COLORS
 
 ### USED ESCAPE SEQUENCES
 BEGIN_ESCAPE   = "\x1B["
@@ -171,7 +170,9 @@ def getForeground(color, intense):
 	if lower in COLOR_ALIASES:
 		lower = COLOR_ALIASES[lower]
 
-	if (lower in NORMAL_COLORS and intense) or lower in INTENSE_COLORS:
+	if (lower in NORMAL_COLORS and intense):
+		return INTENSE_FOREGROUND_CODE + str(NORMAL_COLORS.index(lower))
+	elif lower in INTENSE_COLORS:
 		return INTENSE_FOREGROUND_CODE + str(INTENSE_COLORS.index(lower))
 	elif lower in NORMAL_COLORS:
 		return NORMAL_FOREGROUND_CODE  + str(NORMAL_COLORS.index(lower))
@@ -184,7 +185,9 @@ def getBackground(color, intense):
 
 	lower = color.lower()
 
-	if (lower in NORMAL_COLORS and intense) or lower in INTENSE_COLORS:
+	if (lower in NORMAL_COLORS and intense):
+		return INTENSE_BACKGROUND_CODE + str(NORMAL_COLORS.index(lower))
+	elif lower in INTENSE_COLORS:
 		return INTENSE_BACKGROUND_CODE + str(INTENSE_COLORS.index(lower))
 	elif lower in NORMAL_COLORS:
 		return NORMAL_BACKGROUND_CODE  + str(NORMAL_COLORS.index(lower))

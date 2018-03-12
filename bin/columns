@@ -1,0 +1,54 @@
+#!/usr/bin/python3
+
+"""
+Read in N files, line by line.
+Print concatenation of all those lines (minus their trailing '\n'), separated by ' | ' to stdout.
+Skips lines that are empty in all input files.
+"""
+
+import sys
+import shutil
+
+COLUMNS   = shutil.get_terminal_size().columns
+TABWIDTH  = 2
+SEPARATOR = ' | '
+
+
+def main():
+  files = lmap(open, sys.argv[1:])
+
+  if not files:
+    exit(0)
+
+  N     = len(files)
+  width = (COLUMNS // N) - (len(SEPARATOR) * (N - 1))
+
+  # for i in range(0, 20):
+  while True:
+    lines = lmap(readl, files)
+
+    if all([l == '' for l in lines]):
+      break
+
+    lines = [format(l, width) for l in lines]
+
+    print(*lines, sep=SEPARATOR)
+
+
+def readl(file):
+  return file.readline()
+
+
+def format(line, width):
+  if line and line[-1] == '\n':
+    line = line[:-1]
+
+  return line[0:width].expandtabs(TABWIDTH).ljust(width)
+
+
+def lmap(*args):
+  return list(map(*args))
+
+
+if __name__ in ['__main__', '__console__']:
+  main()

@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+
+import sys
+
+data = {}
+
+def escapeChar(chr):
+    # get repr and drop enclosing quotes
+    if not chr.isprintable():
+      return repr(chr)[1:][:-1]
+
+    if chr.isspace():
+        return '\\x' + hex(ord(chr))[2:]
+
+    return chr
+
+argv  = sys.argv[1:]
+input = argv if argv else sys.stdin
+
+for arg in input:
+  for chr in arg:
+    data[escapeChar(chr)] = ord(chr)
+
+for chr, ord in sorted(data.items()):
+  print(str(chr).ljust(4), str(ord).rjust(4))

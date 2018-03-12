@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+DUMP="$(objdump "$@")"
+
+echo "$DUMP" | pygmentize -l objdump | less -R

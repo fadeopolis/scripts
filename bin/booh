@@ -4,3 +4,4 @@ set -o errexit
 set -o nounset
 
 echo "BOOOOH!" "$@"
+exit 1

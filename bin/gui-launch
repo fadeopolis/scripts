@@ -1,0 +1,22 @@
+#!/usr/bin/zsh
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+local NAME="$1"
+
+if [[ -z "$NAME" ]]
+then
+  echo "error: No program specified (\$1 is empty)"
+  exit 1
+fi
+
+if pgrep "$NAME" >/dev/null
+then
+  echo "error: '$NAME' has already been launched"
+  exit 1
+fi
+
+nohup "$@" >/dev/null 2>/dev/null &
+disown

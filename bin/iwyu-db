@@ -6,86 +6,95 @@ import os
 import os.path
 import subprocess
 
+
 def main(self, argv):
-	if len(argv):
-		db_file  = argv[0]
-		patterns = argv[1:]
-	else:
-		db_file  = 'compile_commands.json'
-		patterns = []
+  db_file  = 'compile_commands.json'
+  patterns = argv
 
-	if not patterns:
-		patterns = ['*']
+  if not patterns:
+    patterns = ['*']
 
-	try:
-		file = open(db_file, "r")
-	except IOError:
-		error("Could not open compilation database '" + db_file + "'")
+  try:
+    file = open(db_file, "r")
+  except IOError:
+    error("Could not open compilation database '" + db_file + "'")
 
-	try:
-		db = json.load(file)
-	except ValueError:
-		error("Could not parse compilation database '" + db_file + "'")
+  try:
+    db = json.load(file)
+  except ValueError:
+    error("Could not parse compilation database '" + db_file + "'")
 
-	for compilation in db:
-		dir  = compilation['directory']
-		cmd  = compilation['command']
-		file = compilation['file']
+  for compilation in db:
+    dir  = compilation['directory']
+    cmd  = compilation['command']
+    file = compilation['file']
 
-		# filter with user provided regexes
-		if not any([match(file, pattern) for pattern in patterns]):
-			continue
+    # filter with user provided regexes
+    if not any([match(file, pattern) for pattern in patterns]):
+      continue
 
-		## start of cmd is the compiler to use,
-		## chomp that off and replace with iwyu
-		cmds = cmd.strip().split()
+    ## start of cmd is the compiler to use,
+    ## chomp that off and replace with iwyu
+    cmds = cmd.strip().split()
 
-		if (len(cmds) < 2):
-			error("Malformed compilation command")
+    if (len(cmds) < 2):
+      error("Malformed compilation command")
 
-		cmds = ['iwyu -Xiwyu -l120'] + cmds[1:]
+    cmds = [
+      'iwyu',
+      '-Xiwyu --max_line_length=120',
+      '-Xiwyu --mapping_file=/home/fader/.fav/cfg/iwyu-cpp-defaults.imp'
+    ] + cmds[1:]
 
-		cmd = " ".join(cmds)
+    cmd = " ".join(cmds)
 
-		print("#", cmd)
+    print("#", cmd)
 
-		## execute command. ignores retcode, since iwyu alwais returns 1
-		os.chdir(dir)
-		sys.stdout.buffer.write(shell(cmd))
+    ## execute command. ignores retcode, since iwyu alwais returns 1
+    os.chdir(dir)
+    sys.stdout.buffer.write(shell(cmd))
+
 
 def error(*args):
-	print(*args, file=sys.stderr)
-	exit(1)
+  print(*args, file=sys.stderr)
+  exit(1)
+
 
 def shell(cmd):
-	proc = subprocess.Popen(
-		cmd,
-		shell=True,
-		stderr=subprocess.PIPE,
-	)
-	try:
-		_, errs = proc.communicate(timeout=15)
-	except subprocess.TimeoutExpired:
-		proc.kill()
-		_, errs = proc.communicate()
+  proc = subprocess.Popen(
+    cmd,
+    shell=True,
+    stderr=subprocess.PIPE,
+  )
+  try:
+    _, errs = proc.communicate(timeout=15)
+  except subprocess.TimeoutExpired:
+    proc.kill()
+    _, errs = proc.communicate()
 
-	assert(type(errs) is bytes)
+  assert(type(errs) is bytes)
 
-	return errs
+  return errs
+
 
 def match(file, pattern):
-	candidates = [
-		file,
-		os.path.basename(file),
-		os.path.splitext(file)[0],
-		os.path.splitext(os.path.basename(file))[0],
-	]
+  candidates = [
+    file,
+    os.path.basename(file),
+    os.path.splitext(file)[0],
+    os.path.splitext(os.path.basename(file))[0],
+  ]
 
-	return any([fnmatch.fnmatch(c, pattern) for c in candidates])
+  return any([fnmatch.fnmatch(c, pattern) for c in candidates])
+
 
 if __name__ == '__main__':
-	import sys
+  import sys
 
-	assert(len(sys.argv) > 0)
+  assert(len(sys.argv) > 0)
 
-	main(sys.argv[0], sys.argv[1:])
+  try:
+    main(sys.argv[0], sys.argv[1:])
+  except KeyboardInterrupt:
+    exit(1)
+    

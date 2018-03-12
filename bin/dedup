@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+
+import sys
+import collections
+import re
+import subprocess
+import itertools
+import functools
+
+
+class Main:
+  def __init__(self, progname, cmdline_args):
+    self.progname     = progname
+    self.cmdline_args = cmdline_args
+
+    if '-h' in cmdline_args or '--help' in cmdline_args:
+      print('usage: dedup [PRIORITIES] DEDUP_LOGS...')
+      print('  Read the code for more details ;P')
+      print('Options:')
+      print('  -h, --help             show this help message and exit')
+      print('  -0 PATH, -1 PATH, ...  give priority 1, 2, ... to PATH')
+      exit(0)
+
+    priorities = collections.OrderedDict()
+    logs       = []
+
+    self.log(cmdline_args)
+
+    idx = 0
+    while idx < len(cmdline_args):
+      arg = cmdline_args[idx]
+
+      match = re.match('^-(?P<priority>\d+)$', arg)
+      if match:
+        if len(cmdline_args) <= (idx + 1):
+          self.error("missing path for priority argument", '(' + arg + ')')
+        priority = int(match.group('priority'))
+        path     = cmdline_args[idx+1]
+        idx += 2
+        priorities[path] = priority
+        continue
+
+      match = re.match('^-(?P<priority>\d+)=(?P<path>.+)$', arg)
+      if match:
+        priority = int(match.group('priority'))
+        path     = match.group('path')
+        priorities[path] = priority
+        idx += 1
+        continue
+
+      logs.append(arg)
+      idx += 1
+
+    self.priorities = priorities
+    self.logs       = logs
+
+  def run(self):
+    if not args:
+      self.log('READING DUPS FROM STDIN')
+      dups = self.readdups(sys.stdin)
+    else:
+      dups = iter([])
+
+      try:
+        for path in self.logs:
+          dups = itertools.chain(dups, self.readdups(open(path, 'r')))
+      except FileNotFoundError as e:
+        self.error('Could not open file', repr(e.filename))
+
+    dups = map(functools.partial(sorted, key=self.priority_fn()), dups)
+
+    for dupset in dups:
+      delete_set = self.ask_for_deletion(dupset)
+
+      for _, path in delete_set:
+        print('removing', path)
+        subprocess.call(['/usr/bin/trash', path])
+      print()
+
+  def readdups(self, file):
+    '''Returns an iterator over the duplicate-sets in file'''
+
+    dups = OrderedSet()
+
+    for line in file:
+      if line.endswith('\n'):
+        line = line[:-1]
+
+      if not line and dups:
+        yield dups
+        dups = OrderedSet()
+      else:
+        dups.add(line)
+
+    if dups:
+      yield dups
+
+  def ask_for_deletion(self, dupset):
+    """Given a dupset, ask the user which entries to delete.
+    The chosen entries which should be deleted are returned as a list."""
+
+    dupset = list(enumerate(dupset, 1))
+
+    def print_actions():
+      print("  * ENTER            - delete all items except `1'")
+      print("  * `i' + ENTER      - ignore duplicate set")
+      print("  * a number + ENTER - delete all items except the chosen one")
+
+    print('Duplicate set:')
+    for idx, dup in dupset:
+      print('%5d)' % idx, dup)
+    print('Choose action:')
+    print_actions()
+
+    while True:
+      try:
+        answer = input()
+      except EOFError:
+        exit(0)
+
+      if answer == '':
+        out = list(dupset)
+        del out[0]
+        return out
+      elif answer == 'i':
+        return []
+      elif answer.isdecimal():
+        idx = int(answer)
+        if idx == 0 or idx > len(dupset):
+          print('No such item: ' + repr(answer))
+          print_actions()
+          continue
+
+        out = list(dupset)
+        del out[idx - 1]
+        return out
+      else:
+        print('Invalid choice (' + repr(answer) + ')')
+        print_actions()
+
+  def priority_fn(self):
+    def key_fn(path):
+      chosen_prefix   = ''
+      chosen_priority = 2 ** 32
+
+      for prefix, priority in self.priorities.items():
+        if path.startswith(prefix) and len(prefix) > len(chosen_prefix):
+          chosen_prefix   = prefix
+          chosen_priority = priority
+
+      suffix = path[len(chosen_prefix):]
+      return chosen_priority, len(suffix), suffix
+
+    return key_fn
+
+  def error(self, *msg):
+    print(self.progname, 'error:', *msg, file=sys.stderr)
+    exit(1)
+
+  def log(self, *msg):
+    if True:
+      print(self.progname, 'log:', *msg, file=sys.stderr)
+
+
+class OrderedSet(collections.MutableSet):
+  def __init__(self, iterable=None):
+    self.end = end = []
+    end += [None, end, end]         # sentinel node for doubly linked list
+    self.map = {}                   # key --> [key, prev, next]
+    if iterable is not None:
+      self |= iterable
+
+  def __len__(self):
+    return len(self.map)
+
+  def __contains__(self, key):
+    return key in self.map
+
+  def add(self, key):
+    if key not in self.map:
+      end = self.end
+      curr = end[1]
+      curr[2] = end[1] = self.map[key] = [key, curr, end]
+
+  def discard(self, key):
+    if key in self.map:
+      key, prev, next = self.map.pop(key)
+      prev[2] = next
+      next[1] = prev
+
+  def __iter__(self):
+    end = self.end
+    curr = end[2]
+    while curr is not end:
+      yield curr[0]
+      curr = curr[2]
+
+  def __reversed__(self):
+    end = self.end
+    curr = end[1]
+    while curr is not end:
+      yield curr[0]
+      curr = curr[1]
+
+  def pop(self, last=True):
+    if not self:
+        raise KeyError('set is empty')
+    key = self.end[1][0] if last else self.end[2][0]
+    self.discard(key)
+    return key
+
+  def __repr__(self):
+    if not self:
+        return '%s()' % (self.__class__.__name__,)
+    return '%s(%r)' % (self.__class__.__name__, list(self))
+
+  def __eq__(self, other):
+    if isinstance(other, OrderedSet):
+      return len(self) == len(other) and list(self) == list(other)
+    return set(self) == set(other)
+
+
+if __name__ in ('__main__', '__console__'):
+  args = sys.argv[1:]
+
+  try:
+    main = Main('dedup', args)
+    main.run()
+  except KeyboardInterrupt:
+    pass

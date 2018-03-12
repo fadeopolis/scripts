@@ -1,0 +1,22 @@
+#!/usr/bin/env python2
+
+from __future__ import print_function
+
+import math
+import os
+import re
+import sys
+
+
+def fish():
+  print()
+  os.system('fish')
+
+
+if __name__ == '__main__':
+  import bpython
+
+  bpython.embed(
+    locals_ = locals(),
+    args    = ['-i'] + sys.argv[1:],
+  )

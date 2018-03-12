@@ -1,0 +1,75 @@
+#!/usr/bin/fish
+
+function with-color \
+  --description="Print stuff (with colors!)" \
+  --wraps="set_color"
+
+  if null $argv
+    set argv -h
+  end
+
+  set -l COLOR normal
+  set -l ARGS
+
+  set -l BACKGROUND
+  set -l BOLD
+  set -l UNDERLINE
+
+  set -l SET_COLOR_OPTS
+  set -l ECHO_OPTS
+
+  while set ARGS (getopts "h:help b:background c:print-colors o:bold u:underline n:no-newline e:enable-escapes E:disable-escapes" $argv)
+    set ARG "$ARGS[1]"
+
+    switch "$ARG"
+      ## our options
+      case h help
+        echo "Usage: with-color [options] COLOR [TEXT...]"
+        echo "Print stuff (with colors!)"
+        echo
+        echo "  --help        Print this help and exit successfully"
+        echo "  all other options are the same as in set_color"
+        __getopts_cleanup
+        return 0
+      case c print-colors
+        set_color --print-colors
+        __getopts_cleanup
+        return 0
+
+      # set_color options
+      case b background print-colors bold underline
+        set BACKGROUND b
+      case o bold
+        set BOLD o
+      case u underline
+        set UNDERLINE u
+
+      ## echo options
+      case n no-newline
+        set ECHO_OPTS $ECHO_OPTS "-n"
+      case e E
+        set ECHO_OPTS $ECHO_OPTS "-$ARG"
+      case enable-escapes disable-escapes
+        set ECHO_OPTS $ECHO_OPTS "--$ARG"
+
+      ## errors
+      case '*'
+        echo (set_color $fish_color_error)"with-color: unknown option `$ARG'"
+        __getopts_cleanup
+        return 1
+    end
+  end
+
+  if set -q ARGS[1]
+    set COLOR "$ARGS[1]"
+    set -e ARGS[1]
+  end
+
+  if [ -n "$BACKGROUND$BOLD$UNDERLINE" ]
+    set SET_COLOR_OPTS "-$BOLD$UNDERLINE$BACKGROUND"
+  end
+
+  echo $ECHO_OPTS (set_color $SET_COLOR_OPTS "$COLOR")$ARGS(set_color normal)
+end
+
+with-color $argv

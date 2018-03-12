@@ -1,0 +1,95 @@
+#!/bin/bash
+
+### A `which' equivalent for shared libraries.
+
+set -o errexit
+set -o nounset
+
+# read the options
+TMP=$(getopt -o vhq --long version,help,quiet -n 'lich' -- "$@")
+eval set -- "$TMP"
+
+PRINT_NAMES=y
+ERROR=
+
+while true
+do
+    case "$1" in
+        -v|--version)
+			echo "lich version 1.0 (dev)"
+			exit 0
+			;;
+        -h|--help)
+			echo "Usage: lich [options] [--] LIBRARY..."
+			echo "Write the full path of shared library LIBRARY(ies) to stdout"
+			echo
+			echo "  --version, -v Print version and exit successfully"
+			echo "  --help        Print this help and exit successfully"
+			echo "  --quiet       Dont print anything, just exit with appropriate code"
+			exit 0
+        	;;
+        -q|--quiet)
+			PRINT_NAMES=
+			shift
+            ;;
+        --)
+			shift
+			break
+			;;
+        *)
+			echo "Invalid option: '$1'"
+			exit 1
+			;;
+    esac
+done
+
+function print {
+	if [[ -n "$PRINT_NAMES" ]]
+	then
+		echo "$@"
+	fi
+}
+
+function find_lib {
+	local LIB="$1"
+	local FOUND=
+
+	if [[ -n "${LD_LIBRARY_PATH:-}" ]]
+	then
+		set -o noglob
+		IFS=:
+		for DIR in ${LD_LIBRARY_PATH//:/ }
+		do
+			if [ -e "$DIR/$LIB" ]
+			then
+				FOUND="$LIB"
+				break
+			fi
+		done
+	fi
+
+	if [[ -z "$FOUND" ]]
+	then
+		FOUND=$(/sbin/ldconfig -p | awk -v needle="$LIB" '$1 == needle {sub(/.* => /, ""); print}')
+	fi
+
+	if [[ -n "$FOUND" ]]
+	then
+		print "$FOUND"
+	else
+		print "lich: library $LIB not found"
+		ERROR=y
+	fi
+
+	return 0
+}
+
+for LIB in $@
+do
+	find_lib "$LIB"
+done
+
+if [[ -n "$ERROR" ]]
+then
+	exit 1
+fi

@@ -1,0 +1,79 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+function main {
+  for ARG in "$@"
+  do
+    for H in "-?" "-h" "--help"
+    do
+      if [[ "$ARG" == "$H" ]]
+      then
+        print_usage
+        exit 0
+      fi
+    done
+  done
+
+  local GIT_ROOT
+  GIT_ROOT="$(git rev-parse --show-toplevel)"
+
+  case "$#" in
+    1)
+      local FILE="$1"; shift
+
+      [[ -f "$FILE" ]] || error "path '$FILE' not found."
+
+      local GIT_FILE
+      GIT_FILE="$(realpath --relative-to="$GIT_ROOT" "$FILE")"
+
+      exec meld "$FILE" <(git show "HEAD":"$GIT_FILE")
+      ;;
+    2)
+      local COMMIT="$1"; shift
+      local FILE="$1"; shift
+
+      [[ -f "$FILE" ]] || error "path '$FILE' not found."
+
+      local GIT_FILE
+      GIT_FILE="$(realpath --relative-to="$GIT_ROOT" "$FILE")"
+
+      exec meld "$FILE" <(git show "$COMMIT":"$GIT_FILE")
+      ;;
+    3)
+      local COMMIT_1="$1"; shift
+      local COMMIT_2="$1"; shift
+      local FILE="$1"; shift
+
+      local GIT_FILE
+      GIT_FILE="$(realpath --relative-to="$GIT_ROOT" "$FILE")"
+
+      exec meld <(git show "$COMMIT_1":"$GIT_FILE") <(git show "$COMMIT_2":"$GIT_FILE")
+      ;;
+    *)
+      print_usage
+      exit 1
+      ;;
+  esac
+}
+
+
+function print_usage {
+  echo 'usage: git-meld <commit> <commit> <path>'
+  echo '       git-meld <commit> <path>'
+  echo '       git-meld <path>'
+  echo
+  echo 'diff <path> in two commits.'
+  echo 'if no commit is given, diffs file in working folder against HEAD.'
+  echo 'if one commit is given, diffs file in working folder against that commit.'
+  echo 'if two commits are given, diffs file those commits.'
+}
+
+
+function error {
+  echo "error: $@" >&2
+  exit 1
+}
+
+main "$@"

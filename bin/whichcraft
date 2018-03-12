@@ -5,9 +5,39 @@ set ARGC (count $argv)
 if [ "$ARGC" -lt 1 ]
 	err "usage: whichcraft EXECUTABLE [COMMAND [ARGS...]]"
 	exit 1
-else if [ "$ARGC" -eq 1 ]
-	exec which $argv
-else
-	eval exec $argv[2..$ARGC] (which $argv[1])
 end
 
+set COMMAND
+set ARGS
+
+if [ "$ARGC" -eq 1 ]
+  set COMMAND "$argv"
+  set ARGS
+else
+  set COMMAND "$argv[1]"
+  set ARGS    $argv[2..$ARGC]
+end
+
+set TYPE (type -t "$COMMAND" 2>/dev/null)
+
+switch "$TYPE"
+  case function
+    if [ -e ~/".config/fish/functions/$COMMAND.fish" ]
+      set COMMAND (realpath ~/".config/fish/functions/$COMMAND.fish")
+    else
+      exit 1
+    end
+  case file
+    set COMMAND (command -s "$COMMAND")
+  case builtin
+    with-color red -- "whichcraft: `$COMMAND' is a builtin"
+    exit 1
+  case ''
+    with-color red -- "whichcraft: `$COMMAND' has an unknown type"
+    exit 1
+  case '*'
+    with-color red -- "whichcraft: `$COMMAND' has an unknown type (`$TYPE')"
+    exit 1
+end
+
+eval $ARGS "'$COMMAND'"
